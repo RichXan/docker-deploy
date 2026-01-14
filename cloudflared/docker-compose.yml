@@ -1,0 +1,9 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: always
+    # 关键配置：使用 host 网络模式
+    # 这样 Tunnel 才能通过 localhost:8000 访问到您本机运行的其他服务
+    network_mode: "host"
+    command: tunnel --no-autoupdate run --token eyJhIjoiNjU4YjhiZmM1YzcwN2VhOWY0NDhlMGQ2NzExNDk2MDgiLCJ0IjoiNjY2NmZlYzgtYWMzMy00NDFiLWFkNjItM2NiY2JiOTUxNzdmIiwicyI6Ik5Ua3lNalJtT1RjdFlUZzJZUzAwTWpObUxUZzFaR1V0TkRJeE9ERmpabUkzT0RVMyJ9

@@ -1,0 +1,11 @@
+services:
+  app:
+    image: jeessy/ddns-go
+    container_name: ddns-go
+    restart: always
+    # port: 9876
+    network_mode: host
+    volumes:
+      - ./persistent/ddns-go:/root
+
+
