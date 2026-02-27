@@ -1,0 +1,15 @@
+services:
+  sing-box:
+    image: ghcr.io/sagernet/sing-box:latest
+    container_name: sing-box
+    restart: always
+    network_mode: host
+    privileged: true
+    volumes:
+      - ./persistent/config.json:/etc/sing-box/config.json
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    # 增加内核参数优化
+    command: ["-D", "/var/lib/sing-box", "run", "-c", "/etc/sing-box/config.json"]

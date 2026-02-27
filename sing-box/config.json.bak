@@ -1,0 +1,85 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "proxy-dns",
+        "address": "https://8.8.8.8/dns-query",
+        "detour": "proxy"
+      },
+      {
+        "tag": "local-dns",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "server": "local-dns",
+        "disable_cache": false
+      },
+      {
+        "query_type": [
+          "A"
+        ],
+        "server": "proxy-dns"
+      }
+    ],
+    "final": "local-dns",
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": [
+        "172.19.0.1/30"
+      ],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "gvisor",
+      "mtu": 1400,
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "trojan",
+      "tag": "proxy",
+      "server": "ab7018af69.zaaf74gwd.sbs",
+      "server_port": 24164,
+      "password": "9146f5c0-3da3-42cd-bedf-2552091df65f",
+      "tls": {
+        "enabled": true,
+        "server_name": "v1-dy.ixigua.com",
+        "insecure": true,
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ],
+    "auto_detect_interface": true,
+    "final": "proxy"
+  }
+}
