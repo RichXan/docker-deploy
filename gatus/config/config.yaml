@@ -1,0 +1,97 @@
+# praxis 巡检。改这份文件后 Gatus 会自动重载，无需重启。
+# 设计见 praxis-loop/servers docs/specs/2026-10-18-gatus-patrol-design.md
+storage:
+  type: sqlite
+  path: /data/data.db
+
+security:
+  basic:
+    username: "admin"
+    password-bcrypt-base64: "${GATUS_ADMIN_PASSWORD_BCRYPT_B64}"
+
+ui:
+  title: "praxis 巡检"
+  header: "praxis 巡检"
+
+alerting:
+  custom:
+    url: "${FEISHU_WEBHOOK_PRAXIS_PATROL}"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    # 必须含「巡检」二字：飞书机器人设了自定义关键词，缺了会被拒收（而 HTTP 仍是 200）
+    body: |
+      {"msg_type":"text","content":{"text":"[ALERT_TRIGGERED_OR_RESOLVED]｜[ENDPOINT_GROUP] / [ENDPOINT_NAME]\n[ALERT_DESCRIPTION]\n[RESULT_ERRORS]"}}
+    placeholders:
+      ALERT_TRIGGERED_OR_RESOLVED:
+        TRIGGERED: "🚨 巡检告警"
+        RESOLVED: "✅ 巡检恢复"
+    default-alert:
+      send-on-resolved: true
+      failure-threshold: 3
+      success-threshold: 1
+
+# 存活探测：每 5 分钟，跟随重定向，要求最终 200、证书剩余 > 7 天。
+# 2026-10-18 实测这 17 个地址跟随重定向后都是 200（hydra 根路径会 307 自循环，故用 /health/ready）。
+x-probe: &probe
+  interval: 5m
+  conditions:
+    - "[STATUS] == 200"
+    - "[CERTIFICATE_EXPIRATION] > 168h"
+  alerts:
+    - type: custom
+      description: "连续 3 次探测失败"
+
+endpoints:
+  - { name: okx,           group: sealan,  url: "https://okx.xanne.cloud/",                    <<: *probe }
+  - { name: radar,         group: sealan,  url: "https://radar.xanne.cloud/healthz",           <<: *probe }
+  - { name: blog,          group: sealan,  url: "https://blog.xanne.cloud/",                   <<: *probe }
+  - { name: console,       group: sealan,  url: "https://console.xanne.cloud/healthz",         <<: *probe }
+  - { name: pass,          group: sealan,  url: "https://pass.xanne.cloud/",                   <<: *probe }
+  - { name: n8n,           group: sealan,  url: "https://n8n.xanne.cloud/",                    <<: *probe }
+  - { name: bark,          group: sealan,  url: "https://bark.xanne.cloud/healthz",            <<: *probe }
+  - { name: box,           group: sealan,  url: "https://box.xanne.cloud/",                    <<: *probe }
+  - { name: market,        group: sealan,  url: "https://market.xanne.cloud/",                 <<: *probe }
+  - { name: qd,            group: sealan,  url: "https://qd.xanne.cloud/",                     <<: *probe }
+  - { name: nauth-beta,    group: sealan,  url: "https://nauth-beta.xanne.cloud/",             <<: *probe }
+  - { name: multica,       group: tencent, url: "https://multica.xanne.cloud/",                <<: *probe }
+  - { name: auth,          group: tencent, url: "https://auth.xanne.cloud/",                   <<: *probe }
+  - { name: hydra,         group: tencent, url: "https://hydra.xanne.cloud/health/ready",      <<: *probe }
+  - { name: openconnector, group: tencent, url: "https://openconnector.xanne.cloud/",          <<: *probe }
+  - { name: xledger,       group: tencent, url: "https://xledger.xanne.cloud/",                <<: *probe }
+  - { name: agent-vault,   group: tencent, url: "https://agent-vault.xanne.cloud/",            <<: *probe }
+
+# 业务心跳：由各任务主动上报。
+# 注意：Gatus 的心跳定时器不随上报重置，「完全没跑」最坏要近 2 个 interval 才发现。
+external-endpoints:
+  - name: okx-watchdog
+    group: biz
+    token: "${GATUS_PUSH_TOKEN_OKX_WATCHDOG}"
+    heartbeat: { interval: 45m }
+    alerts:
+      - type: custom
+        failure-threshold: 1
+        description: "okx-trade 看门狗 45 分钟没有上报，cron 可能挂了"
+  - name: okx-checks
+    group: biz
+    token: "${GATUS_PUSH_TOKEN_OKX_WATCHDOG}"
+    alerts:
+      - type: custom
+        failure-threshold: 3
+        description: "okx-trade 交易链路连续 3 轮检查不通过"
+  - name: daily-log
+    group: biz
+    token: "${GATUS_PUSH_TOKEN_DAILY_LOG}"
+    heartbeat: { interval: 26h }
+    alerts:
+      - type: custom
+        failure-threshold: 1
+        description: "日报没有按时完成（笔记本没开机也会触发）"
+  - name: qd-checkin
+    group: biz
+    token: "${GATUS_PUSH_TOKEN_QD_CHECKIN}"
+    heartbeat: { interval: 26h }
+    alerts:
+      - type: custom
+        failure-threshold: 1
+        description: "Trae / WorkBuddy 自动签到异常"

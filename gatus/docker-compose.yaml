@@ -1,0 +1,18 @@
+services:
+  gatus:
+    image: twinproduction/gatus:v5.37.0
+    container_name: gatus
+    restart: unless-stopped
+    # 面板密码哈希、飞书 webhook、心跳 token 都在 .env（600），不进 git
+    env_file:
+      - .env
+    # 只绑回环；对外经 cloudflared 隧道 status.xanne.cloud
+    ports:
+      - "127.0.0.1:13020:8080"
+    volumes:
+      # 挂目录而不是单个文件：编辑器或 sed -i 保存会换 inode，单文件挂载会让容器一直看着旧文件，自动重载悄悄失效
+      - ./config:/config:ro
+      - gatus-data:/data
+
+volumes:
+  gatus-data:
