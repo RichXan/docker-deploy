@@ -40,6 +40,7 @@ alerting:
 
 # 存活探测：每 5 分钟，跟随重定向，要求最终 200、证书剩余 > 7 天。
 # 2026-10-18 实测这 17 个地址跟随重定向后都是 200（hydra 根路径会 307 自循环，故用 /health/ready）。
+# 2026-10-20 移除 auth、hydra（tencent 上的 Ory 已下线，改用 Zitadel，见 praxis-loop/servers docs/plans/2026-10-20-ory-to-zitadel.md）。
 x-probe: &probe
   interval: 5m
   conditions:
@@ -62,8 +63,6 @@ endpoints:
   - { name: qd,            group: sealan,  url: "https://qd.xanne.cloud/",                     <<: *probe }
   - { name: nauth-beta,    group: sealan,  url: "https://nauth-beta.xanne.cloud/",             <<: *probe }
   - { name: multica,       group: tencent, url: "https://multica.xanne.cloud/",                <<: *probe }
-  - { name: auth,          group: tencent, url: "https://auth.xanne.cloud/",                   <<: *probe }
-  - { name: hydra,         group: tencent, url: "https://hydra.xanne.cloud/health/ready",      <<: *probe }
   - { name: openconnector, group: tencent, url: "https://openconnector.xanne.cloud/",          <<: *probe }
   - { name: xledger,       group: tencent, url: "https://xledger.xanne.cloud/",                <<: *probe }
   - { name: agent-vault,   group: tencent, url: "https://agent-vault.xanne.cloud/",            <<: *probe }
