@@ -1,0 +1,68 @@
+# SSO 网关。cloudflared 以 HTTP 连 127.0.0.1:13030，按 Host 分站点。
+# 每个站点：/oauth2/* 交给 oauth2-proxy；少数健康检查 / 静态路径放行；其余先 forward_auth，未登录 302 去 Zitadel。
+{
+	admin off
+	auto_https off
+	default_bind 127.0.0.1
+}
+
+(sso) {
+	handle /oauth2/* {
+		reverse_proxy 127.0.0.1:4180 {
+			header_up X-Forwarded-Proto https
+			header_up X-Real-IP {header.Cf-Connecting-Ip}
+		}
+	}
+}
+
+(gate) {
+	forward_auth 127.0.0.1:4180 {
+		uri /oauth2/auth
+		header_up X-Forwarded-Proto https
+		copy_headers X-Auth-Request-User X-Auth-Request-Email
+		@unauth status 401
+		handle_response @unauth {
+			redir * /oauth2/start?rd=https://{host}{uri} 302
+		}
+	}
+}
+
+# okx-trade 看板（策略参数、权益、持仓都在里面，必须登录）
+http://okx.xanne.cloud:13030 {
+	import sso
+	# Bark 推送的图标要被手机直接拉取；也给 Gatus 当存活探针（与看板同一进程）
+	@public path /bark-okx.png
+	handle @public {
+		reverse_proxy 127.0.0.1:8801
+	}
+	handle {
+		import gate
+		reverse_proxy 127.0.0.1:8801
+	}
+}
+
+# market-monitor
+http://market.xanne.cloud:13030 {
+	import sso
+	@public path /api/health
+	handle @public {
+		reverse_proxy 127.0.0.1:5173
+	}
+	handle {
+		import gate
+		reverse_proxy 127.0.0.1:5173
+	}
+}
+
+# praxis-console（自身的 CONSOLE_ACCESS_KEY 登录仍保留，网关在它前面再加一道）
+http://console.xanne.cloud:13030 {
+	import sso
+	@public path /healthz
+	handle @public {
+		reverse_proxy 127.0.0.1:13010
+	}
+	handle {
+		import gate
+		reverse_proxy 127.0.0.1:13010
+	}
+}

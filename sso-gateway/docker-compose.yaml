@@ -1,0 +1,61 @@
+# SSO 网关（sealan，/opt/docker-deploy/sso-gateway）：给不会讲 OIDC 的服务加一道 Zitadel 登录
+# 链路：cloudflared(host 网络) → 127.0.0.1:13030 Caddy ─ forward_auth → 127.0.0.1:4180 oauth2-proxy ─ OIDC → https://id.xanne.cloud
+#                                                    └ 通过后 → 各服务本机端口
+# 受保护：okx.xanne.cloud(8801)、market.xanne.cloud(5173)、console.xanne.cloud(13010)。加服务：Caddyfile 加站点 + Zitadel 应用加回调 + 隧道规则改指 13030
+# 谁能进：Zitadel 项目 praxis-gateway 开了「登录时校验授权」，只有被授予角色 access 的用户能通过；控制台里给人授权即可
+# 秘密来自同目录 .env（600，不进 git），值在 agent-vault infra：SSO_GATEWAY_CLIENT_ID / SSO_GATEWAY_CLIENT_SECRET / SSO_GATEWAY_COOKIE_SECRET
+name: sso-gateway
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    container_name: sso-oauth2-proxy
+    restart: unless-stopped
+    # host 网络：与 cloudflared、Caddy 一样只绑回环，省掉端口映射
+    network_mode: host
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: 127.0.0.1:4180
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Xanne ID
+      OAUTH2_PROXY_OIDC_ISSUER_URL: https://id.xanne.cloud
+      OAUTH2_PROXY_CLIENT_ID: ${SSO_GATEWAY_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${SSO_GATEWAY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${SSO_GATEWAY_COOKIE_SECRET}
+      OAUTH2_PROXY_SCOPE: openid email profile
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      # 只做认证（forward_auth 的 /oauth2/auth），不当反代
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      # 一个 cookie 覆盖所有 *.xanne.cloud：登录一次，三个站都通
+      OAUTH2_PROXY_COOKIE_NAME: _xanne_sso
+      OAUTH2_PROXY_COOKIE_DOMAINS: .xanne.cloud
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .xanne.cloud
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_EXPIRE: 168h
+      # 谁能进由 Zitadel 的项目授权决定，这里不再按邮箱域过滤
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
+    mem_limit: 64m
+    logging: *logging
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: sso-caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      # 挂目录不挂单文件：sed -i / 编辑器保存会换 inode，单文件挂载会一直读旧文件
+      - ./caddy:/etc/caddy:ro
+    depends_on:
+      - oauth2-proxy
+    mem_limit: 64m
+    logging: *logging
