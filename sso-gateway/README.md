@@ -19,6 +19,7 @@ oauth2-proxy 替服务完成 OIDC 登录，Caddy 按域名分站点、用 `forwa
 - 任一站点：`https://<站点>/oauth2/sign_out`——清网关 cookie，并由 oauth2-proxy 服务端调 Zitadel `end_session` 结束会话，下次访问会看到登录框
 - console 页面上的「退出登录」（`/logout`）由网关接管，效果同上，另外清掉 console 自己的 `pc_auth`
 - 只清网关 cookie 而不结束 Zitadel 会话的话，再访问会被**静默登回去**（这就是 SSO），看起来像「退出没用」
+- oauth2-proxy 每次退出都会记一行 `error while calling backend logout url, returned error code 404`：**这是正常的**。Zitadel 结束会话后把服务端请求转到登录页的退出页，没有浏览器上下文所以 404；会话在此之前已结束（2026-10-21 对照实验：退出前会话存在、退出后 `GET /v2/sessions/{id}` 404）
 
 ## console 认网关身份
 
