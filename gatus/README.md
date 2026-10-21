@@ -1,6 +1,6 @@
 # gatus（praxis 巡检）
 
-15 个对外域名的存活探测（2026-10-20 随 Ory 下线去掉 auth、hydra） + 4 项业务心跳，异常只推飞书「praxis 巡检」群。面板 https://status.xanne.cloud （admin 登录）。
+16 个对外域名的存活探测（2026-10-20 随 Ory 下线去掉 auth、hydra，2026-10-21 加 id） + 4 项业务心跳，异常只推飞书「praxis 巡检」群。面板 https://status.xanne.cloud （admin 登录）。
 设计与取舍见 `praxis-loop/servers` 仓库 `docs/specs/2026-10-18-gatus-patrol-design.md`，服务登记见该仓库 `SERVICES.md`。
 
 ## 文件
