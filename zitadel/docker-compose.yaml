@@ -70,6 +70,9 @@ services:
       ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: ${SMTP_FROM}
       ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: Xanne ID
 
+      # 不向 zitadel.com 发每日匿名使用报告（默认开）
+      ZITADEL_SERVICEPING_ENABLED: "false"
+
       # 访问日志不进 stdout：本机 docker 无全局日志轮转，且有 Caddy 一层
       ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: "false"
     healthcheck:

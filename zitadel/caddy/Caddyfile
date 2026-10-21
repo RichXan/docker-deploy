@@ -12,9 +12,9 @@
 	# 边缘一律是 HTTPS；cloudflared 到这里是明文 HTTP，不改写会让上游以为是 http
 	request_header X-Forwarded-Proto https
 
-	# 根路径 → 新版登录页（官方模板的 replacepath）
+	# 根路径 → 新版登录页（官方模板的 replacepath）。不带结尾斜杠：带了 Next.js 会再 308 一次
 	@root path /
-	rewrite @root /ui/v2/login/
+	rewrite @root /ui/v2/login
 
 	@login path /ui/v2/login /ui/v2/login/*
 	handle @login {
