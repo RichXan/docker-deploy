@@ -32,6 +32,8 @@ services:
       # 只做认证（forward_auth 的 /oauth2/auth），不当反代
       OAUTH2_PROXY_UPSTREAMS: static://202
       OAUTH2_PROXY_REVERSE_PROXY: "true"
+      # 只有本机 Caddy 会连进来；不设的话默认信任任何来源的 X-Forwarded-*
+      OAUTH2_PROXY_TRUSTED_PROXY_IPS: 127.0.0.1/32
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       # 一个 cookie 覆盖所有 *.xanne.cloud：登录一次，三个站都通
