@@ -21,17 +21,16 @@ oauth2-proxy 替服务完成 OIDC 登录，Caddy 按域名分站点、用 `forwa
 - 只清网关 cookie 而不结束 Zitadel 会话的话，再访问会被**静默登回去**（这就是 SSO），看起来像「退出没用」
 - oauth2-proxy 每次退出都会记一行 `error while calling backend logout url, returned error code 404`：**这是正常的**。Zitadel 结束会话后把服务端请求转到登录页的退出页，没有浏览器上下文所以 404；会话在此之前已结束（2026-10-21 对照实验：退出前会话存在、退出后 `GET /v2/sessions/{id}` 404）
 
-## 在别处退出也会生效（单点退出）
+## 已知限制：在 Zitadel 那边退出，网关不会跟着退出
 
-在 Zitadel 控制台点退出、管理员终止会话、删用户之后，**最多约 10 分钟**所有受保护站点都要求重新登录。靠三样东西配合：
+- **在网关站点退出是彻底的**：任一站点 `/oauth2/sign_out`（或 console 的「退出登录」）会清掉三站共用的 `_xanne_sso`，并结束 Zitadel 会话
+- **反过来不行**：在 Zitadel 控制台（或以后接入的其他 OIDC 应用）退出、管理员终止会话，网关这边要等自己的 cookie 过期（`COOKIE_EXPIRE` 168h）
+- 要立刻踢掉所有网关会话：轮换 `SSO_GATEWAY_COOKIE_SECRET`（vault 与 `.env` 一起改）后 `docker compose up -d`，所有人重新登录
 
-1. oauth2-proxy 每 5 分钟（`COOKIE_REFRESH`）用 refresh token 向 Zitadel 续期，拿新的 ID Token
-2. 会话存在 `sso-redis`（127.0.0.1:6380，不落盘）。**不能用 cookie 存会话**：forward_auth 模式下 oauth2-proxy 写回的新 cookie
-   到不了浏览器，续期结果会丢，每个请求都拿旧 refresh token 去续（Zitadel 轮换 refresh token，必失败）——2026-10-21 踩过
-3. Zitadel 实例的 **ID Token 有效期设为 10 分钟**（默认 12 小时）。会话结束后 Zitadel 续期返回 `invalid_request`，
-   oauth2-proxy 不认它是「已吊销」（只认 `invalid_grant` / `invalid_client`），会退回检查 ID Token 是否过期——所以要短
-
-Redis 丢了（重启）只是所有人重新登录一次。没有这套配置时，网关只认自己 7 天有效的 cookie，Zitadel 那边退出了这边照样能进（2026-10-21 实测过）。
+2026-10-21 试过「每 5 分钟用 refresh token 续期 + 会话存 Redis + ID Token 10 分钟」，**不成立**：Zitadel 结束会话**不会**作废
+已签发给其他客户端的 refresh token，续期照样成功（对照实验：会话结束后第 660 秒仍能续期、仍能访问），已回滚。
+真正的做法是 OIDC 后通道退出（Zitadel 会话结束时主动通知各应用），但 oauth2-proxy 尚不支持（上游 PR #3445 / issue #1224 未合并）。
+另：forward_auth 模式下 oauth2-proxy 写回的 Set-Cookie 到不了浏览器，以后若再开 `COOKIE_REFRESH`，会话必须存 Redis。
 
 ## console 认网关身份
 
