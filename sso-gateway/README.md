@@ -23,9 +23,15 @@ oauth2-proxy 替服务完成 OIDC 登录，Caddy 按域名分站点、用 `forwa
 
 ## 在别处退出也会生效（单点退出）
 
-oauth2-proxy 每 5 分钟（`COOKIE_REFRESH`）用 refresh token 向 Zitadel 续期。Zitadel 会话在别处结束——Zitadel 控制台点退出、
-管理员终止会话、删用户——续期失败，网关 cookie 作废，下一次请求就回登录页。所以「在 A 处退出」最多 5 分钟后传到所有站点。
-没有这个配置时，网关只认自己 7 天有效的 cookie，Zitadel 那边退出了这边照样能进（2026-10-21 实测过）。
+在 Zitadel 控制台点退出、管理员终止会话、删用户之后，**最多约 10 分钟**所有受保护站点都要求重新登录。靠三样东西配合：
+
+1. oauth2-proxy 每 5 分钟（`COOKIE_REFRESH`）用 refresh token 向 Zitadel 续期，拿新的 ID Token
+2. 会话存在 `sso-redis`（127.0.0.1:6380，不落盘）。**不能用 cookie 存会话**：forward_auth 模式下 oauth2-proxy 写回的新 cookie
+   到不了浏览器，续期结果会丢，每个请求都拿旧 refresh token 去续（Zitadel 轮换 refresh token，必失败）——2026-10-21 踩过
+3. Zitadel 实例的 **ID Token 有效期设为 10 分钟**（默认 12 小时）。会话结束后 Zitadel 续期返回 `invalid_request`，
+   oauth2-proxy 不认它是「已吊销」（只认 `invalid_grant` / `invalid_client`），会退回检查 ID Token 是否过期——所以要短
+
+Redis 丢了（重启）只是所有人重新登录一次。没有这套配置时，网关只认自己 7 天有效的 cookie，Zitadel 那边退出了这边照样能进（2026-10-21 实测过）。
 
 ## console 认网关身份
 

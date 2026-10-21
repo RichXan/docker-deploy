@@ -44,15 +44,32 @@ services:
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_COOKIE_SAMESITE: lax
       OAUTH2_PROXY_COOKIE_EXPIRE: 168h
-      # 每 5 分钟用 refresh token 向 Zitadel 续期一次：Zitadel 会话在别处结束（控制台退出、管理员踢人、收回授权）后，
-      # 续期失败、网关 cookie 当场作废。不设的话网关只认自己的 cookie，7 天内都不会再问 Zitadel
+      # 单点退出：每 5 分钟用 refresh token 向 Zitadel 续期（结果写 Redis，见下）。Zitadel 会话在别处结束后续期失败，
+      # oauth2-proxy 退回检查 ID Token，而 Zitadel 实例的 ID Token 有效期已设为 10 分钟，所以最多约 10 分钟后网关拒绝。
+      # 不设的话网关只认自己 7 天有效的 cookie，Zitadel 那边退出了这边照样能进
       OAUTH2_PROXY_COOKIE_REFRESH: 5m
+      # 会话存 Redis，cookie 里只有会话编号：forward_auth 模式下 oauth2-proxy 写回的新 cookie 到不了浏览器，
+      # 用 cookie 存会话的话续期结果丢失、每个请求都拿旧 refresh token 去续（Zitadel 会轮换，必失败）
+      OAUTH2_PROXY_SESSION_STORE_TYPE: redis
+      OAUTH2_PROXY_REDIS_CONNECTION_URL: redis://127.0.0.1:6380
       # 谁能进由 Zitadel 的项目授权决定，这里不再按邮箱域过滤
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
       # 退出（/oauth2/sign_out）时由服务端调 Zitadel 结束会话；否则 Zitadel 会话还在，再访问会被静默登回去，看不到登录框
       OAUTH2_PROXY_BACKEND_LOGOUT_URL: "https://id.xanne.cloud/oidc/v1/end_session?id_token_hint={id_token}"
+    depends_on:
+      - redis
     mem_limit: 64m
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: sso-redis
+    restart: unless-stopped
+    network_mode: host
+    # 只存网关会话，丢了只是大家重新登录一次：不落盘
+    command: ["redis-server", "--bind", "127.0.0.1", "--port", "6380", "--save", "", "--appendonly", "no", "--maxmemory", "24mb", "--maxmemory-policy", "allkeys-lru"]
+    mem_limit: 32m
     logging: *logging
 
   caddy:
