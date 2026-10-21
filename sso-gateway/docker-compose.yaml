@@ -27,7 +27,8 @@ services:
       OAUTH2_PROXY_CLIENT_ID: ${SSO_GATEWAY_CLIENT_ID}
       OAUTH2_PROXY_CLIENT_SECRET: ${SSO_GATEWAY_CLIENT_SECRET}
       OAUTH2_PROXY_COOKIE_SECRET: ${SSO_GATEWAY_COOKIE_SECRET}
-      OAUTH2_PROXY_SCOPE: openid email profile
+      # offline_access：拿 refresh token，配合下面的 COOKIE_REFRESH 定期向 Zitadel 续期
+      OAUTH2_PROXY_SCOPE: openid email profile offline_access
       OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
       # 只做认证（forward_auth 的 /oauth2/auth），不当反代
       OAUTH2_PROXY_UPSTREAMS: static://202
@@ -43,6 +44,9 @@ services:
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_COOKIE_SAMESITE: lax
       OAUTH2_PROXY_COOKIE_EXPIRE: 168h
+      # 每 5 分钟用 refresh token 向 Zitadel 续期一次：Zitadel 会话在别处结束（控制台退出、管理员踢人、收回授权）后，
+      # 续期失败、网关 cookie 当场作废。不设的话网关只认自己的 cookie，7 天内都不会再问 Zitadel
+      OAUTH2_PROXY_COOKIE_REFRESH: 5m
       # 谁能进由 Zitadel 的项目授权决定，这里不再按邮箱域过滤
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
