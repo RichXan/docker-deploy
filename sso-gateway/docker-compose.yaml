@@ -46,6 +46,8 @@ services:
       # 谁能进由 Zitadel 的项目授权决定，这里不再按邮箱域过滤
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
+      # 退出（/oauth2/sign_out）时由服务端调 Zitadel 结束会话；否则 Zitadel 会话还在，再访问会被静默登回去，看不到登录框
+      OAUTH2_PROXY_BACKEND_LOGOUT_URL: "https://id.xanne.cloud/oidc/v1/end_session?id_token_hint={id_token}"
     mem_limit: 64m
     logging: *logging
 
@@ -54,6 +56,9 @@ services:
     container_name: sso-caddy
     restart: unless-stopped
     network_mode: host
+    environment:
+      # console 认网关身份用的共享密钥（与 praxis-console 的 .env 同值），Caddyfile 里以 {$CONSOLE_GATEWAY_SECRET} 引用
+      CONSOLE_GATEWAY_SECRET: ${CONSOLE_GATEWAY_SECRET}
     volumes:
       # 挂目录不挂单文件：sed -i / 编辑器保存会换 inode，单文件挂载会一直读旧文件
       - ./caddy:/etc/caddy:ro

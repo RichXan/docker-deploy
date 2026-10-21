@@ -10,9 +10,21 @@ oauth2-proxy 替服务完成 OIDC 登录，Caddy 按域名分站点、用 `forwa
 |---|---|---|---|
 | okx.xanne.cloud | 127.0.0.1:8801 | `/bark-okx.png` | Bark 推送图标要被手机直接拉；Gatus 存活探针 |
 | market.xanne.cloud | 127.0.0.1:5173 | `/api/health` | Gatus 探针 |
-| console.xanne.cloud | 127.0.0.1:13010 | `/healthz` | Gatus 探针 |
+| console.xanne.cloud | 127.0.0.1:13010 | `/healthz` | Gatus 探针（`/logout` 由网关接管） |
 
 ⚠️ okx 的 `/api/daemon-state` **不放行**（含策略参数、权益、持仓）。发版检查改在 sealan 上 `curl 127.0.0.1:8801/api/daemon-state`。
+
+## 退出
+
+- 任一站点：`https://<站点>/oauth2/sign_out`——清网关 cookie，并由 oauth2-proxy 服务端调 Zitadel `end_session` 结束会话，下次访问会看到登录框
+- console 页面上的「退出登录」（`/logout`）由网关接管，效果同上，另外清掉 console 自己的 `pc_auth`
+- 只清网关 cookie 而不结束 Zitadel 会话的话，再访问会被**静默登回去**（这就是 SSO），看起来像「退出没用」
+
+## console 认网关身份
+
+console 路由在认证通过后加 `X-Gateway-Secret`（`.env` 的 `CONSOLE_GATEWAY_SECRET`，与 praxis-console 的 `.env` 同值），
+console 见到它和 `X-Auth-Request-Email` 就直接放行，经域名不再出现访问密钥页。所有站点都会先剥掉客户端自带的
+`X-Gateway-Secret` / `X-Auth-Request-*`，外部伪造不了。轮换密钥两边 `.env` 一起改。
 
 ## 谁能进
 
@@ -29,7 +41,7 @@ Zitadel 组织 `xanne` 的项目 **`praxis-gateway`** 开了「登录时校验�
 
 ## 凭证
 
-`.env`（600）三项，值在 agent-vault `infra`：`SSO_GATEWAY_CLIENT_ID`、`SSO_GATEWAY_CLIENT_SECRET`、`SSO_GATEWAY_COOKIE_SECRET`。
+`.env`（600）四项，值在 agent-vault `infra`：`SSO_GATEWAY_CLIENT_ID`、`SSO_GATEWAY_CLIENT_SECRET`、`SSO_GATEWAY_COOKIE_SECRET`、`CONSOLE_GATEWAY_SECRET`。
 
 ## 回滚
 

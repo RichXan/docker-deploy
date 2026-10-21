@@ -6,6 +6,13 @@
 	default_bind 127.0.0.1
 }
 
+# 网关自己会往上游加的身份头，一律先剥掉客户端带来的同名头，防伪造
+(strip) {
+	request_header -X-Gateway-Secret
+	request_header -X-Auth-Request-Email
+	request_header -X-Auth-Request-User
+}
+
 (sso) {
 	handle /oauth2/* {
 		reverse_proxy 127.0.0.1:4180 {
@@ -29,6 +36,7 @@
 
 # okx-trade 看板（策略参数、权益、持仓都在里面，必须登录）
 http://okx.xanne.cloud:13030 {
+	import strip
 	import sso
 	# Bark 推送的图标要被手机直接拉取；也给 Gatus 当存活探针（与看板同一进程）
 	@public path /bark-okx.png
@@ -43,6 +51,7 @@ http://okx.xanne.cloud:13030 {
 
 # market-monitor
 http://market.xanne.cloud:13030 {
+	import strip
 	import sso
 	@public path /api/health
 	handle @public {
@@ -54,15 +63,24 @@ http://market.xanne.cloud:13030 {
 	}
 }
 
-# praxis-console（自身的 CONSOLE_ACCESS_KEY 登录仍保留，网关在它前面再加一道）
+# praxis-console（认网关身份，经域名不再要访问密钥；访问密钥只留给本机直连）
 http://console.xanne.cloud:13030 {
+	import strip
 	import sso
 	@public path /healthz
 	handle @public {
 		reverse_proxy 127.0.0.1:13010
 	}
+	# 页面上的「退出登录」：清 console 自己的 cookie → 网关退出（清 _xanne_sso + 结束 Zitadel 会话）→ 回首页即见登录框
+	handle /logout {
+		header Set-Cookie "pc_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+		redir * /oauth2/sign_out?rd=https://console.xanne.cloud/ 302
+	}
 	handle {
 		import gate
-		reverse_proxy 127.0.0.1:13010
+		# console 见到正确的共享密钥 + 网关给的邮箱就直接放行，不再要访问密钥
+		reverse_proxy 127.0.0.1:13010 {
+			header_up X-Gateway-Secret {$CONSOLE_GATEWAY_SECRET}
+		}
 	}
 }
