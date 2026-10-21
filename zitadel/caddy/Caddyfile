@@ -1,0 +1,41 @@
+# Zitadel 前置代理。cloudflared 以 HTTP/1.1 连本端口（它连源站的 HTTP/2 只支持 HTTPS），
+# 这里再用 h2c 连 zitadel-api —— 这一跳就是需要 Caddy 的原因。路由规则对应官方 Traefik 模板。
+{
+	admin off
+	auto_https off
+	servers {
+		protocols h1 h2c
+	}
+}
+
+:8080 {
+	# 边缘一律是 HTTPS；cloudflared 到这里是明文 HTTP，不改写会让上游以为是 http
+	request_header X-Forwarded-Proto https
+
+	# 根路径 → 新版登录页（官方模板的 replacepath）
+	@root path /
+	rewrite @root /ui/v2/login/
+
+	@login path /ui/v2/login /ui/v2/login/*
+	handle @login {
+		reverse_proxy zitadel-login:3000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# /api/* 是 api 的别名前缀（官方模板 stripprefix）
+	handle_path /api/* {
+		reverse_proxy h2c://zitadel-api:8080 {
+			header_up X-Forwarded-Proto https
+			flush_interval -1
+		}
+	}
+
+	# 其余：OIDC、SAML、gRPC-web / Connect、REST /v2、控制台 /ui/console
+	handle {
+		reverse_proxy h2c://zitadel-api:8080 {
+			header_up X-Forwarded-Proto https
+			flush_interval -1
+		}
+	}
+}
